@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            background-color: black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            flex-direction: column; // Added this to align items vertically.
+        }
+
+        #gameContainer {
+            border: 1px solid white;
+            padding: 10px;
+        }
+
+        #controls {
+            color: white;
+            text-align: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="BlockBusterEasy" width="360" height="640" style="background-color: black;"></canvas>
+    </div>
+    <div id="controls">
+        <p>Use the left and right arrow keys to move the paddle.</p>
+    </div>
+<script>
+// Step 1: Get a reference to our canvas and its context
+var canvas = document.getElementById('BlockBusterEasy');
+var context = canvas.getContext('2d');
+
+// Define game state
+var GAME_STATE_PLAY = 0, GAME_STATE_NEXT_LEVEL = 1, GAME_STATE_LOST_LIFE = 2, GAME_STATE_GAME_OVER = 3;
+var gameState = GAME_STATE_PLAY;
+
+// Step 2: Define our game's objects
+var ball = {
+    x: canvas.width / 2,
+    y: canvas.height / 2,
+    radius: 10,
+    dx: 2,  // Increase ball speed by 50%
+    dy: -2  // Increase ball speed by 50% and go upwards
+};
+
+var paddleWidth = 90;
+var paddleHeight = 10;
+var paddleSpeed = 5;
+
+var paddle = {
+    x: canvas.width / 2 - paddleWidth / 2,
+    y: canvas.height - paddleHeight,
+    width: paddleWidth,
+    height: paddleHeight,
+    dx: 0
+};
+
+// Function to reset the ball to the starting position (on the paddle)
+function resetBall() {
+    ball.x = paddle.x + paddle.width / 2;
+    ball.y = paddle.y - ball.radius;
+}
+
+// Define score and high score
+var score = 0;
+var highScore = 0; // Added high score
+
+// Define lives
+var lives = 9; 
+
+// Define timer
+var timer = 180; // 3 minutes to complete each level
+var timerInterval;
+
+function resetTimer() {
+    timer = 180; // 3 minutes to complete each level
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(function() {
+        if (gameState === GAME_STATE_PLAY) {
+            timer--;
+            if (timer <= 0) {
+                // Time's up, game over
+                gameState = GAME_STATE_GAME_OVER;
+                if (score > highScore) highScore = score; // Update high score if necessary
+            }
+        }
+    }, 1000);
+}
+
+resetTimer();
+
+// Define level and block colors
+var level = 1;
+var blockColors = { '3': 'green', '2': 'orange', '1': 'red' };  // Map hits to colors
+
+// Define the patterns for numbers 0 to 9
+var numbers = {
+    0: [
+        [0, 0, 1, 1, 0, 0],
+        [0, 1, 0, 0, 1, 0],
+        [0, 1, 0, 0, 1, 0],
+        [0, 1, 0, 0, 1, 0],
+        [0, 1, 0, 0, 1, 0],
+        [0, 0, 1, 1, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0]
+    ],
+    1: [
+        [0, 0, 0, 1, 0, 0],
+        [0, 0, 1, 1, 0, 0],
+        [0, 0, 0, 1, 0, 0],
+        [0, 0, 0, 1, 0, 0],
+        [0, 0, 0, 1, 0, 0],
+        [0, 0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0]
+    ],
+    2: [
+        [0, 1, 1, 1, 1, 0],
+        [1, 0, 0, 0, 1, 0],
+        [0, 0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0, 0],
+        [0, 1, 0, 0, 0, 0],
+        [1, 1, 1, 1, 1, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0]
+    ],
+    3: [
+        [0, 1, 1, 1, 1, 0],
+        [0, 0, 0, 0, 1, 0],
+        [0, 0, 0, 0, 1, 0],
+        [0, 1, 1, 1, 1, 0],
+        [0, 0, 0, 0, 1, 0],
+        [0, 0, 0, 0, 1, 0],
+        [0, 1, 1, 1, 1, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0]
+    ],
+    4: [
+        [0, 0, 0, 1, 0, 0],
+        [0, 0, 1, 1, 0, 0],
+        [0, 1, 0, 1, 0, 0],
+        [1, 0, 0, 1, 0, 0],
+        [1, 1, 1, 1, 1, 1],
+        [0, 0, 0, 1, 0, 0],
+        [0, 0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0]
+    ],
+    5: [
+        [0, 1, 1, 1, 1, 0],
+        [0, 1, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0, 0],
+        [0, 1, 1, 1, 1, 0],
+        [0, 0, 0, 0, 1, 0],
+        [0, 0, 0, 0, 1, 0],
+        [0, 1, 1, 1, 1, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0]
+    ],
+    6: [
+        [0, 0, 1, 1, 1, 0],
+        [0, 1, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0, 0],
+        [0, 1, 1, 1, 1, 0],
+        [0, 1, 0, 0, 1, 0],
+        [0, 1, 0, 0, 1, 0],
+        [0, 0, 1, 1, 1, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0]
+    ],
+    7: [
+        [0, 1, 1, 1, 1, 1],
+        [0, 0, 0, 0, 1, 0],
+        [0, 0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0, 0],
+        [0, 0, 1, 0, 0, 0],
+        [0, 0, 1, 0, 0, 0],
+        [0, 0, 1, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0]
+    ],
+    8: [
+        [0, 0, 1, 1, 0, 0],
+        [0, 1, 0, 0, 1, 0],
+        [0, 1, 0, 0, 1, 0],
+        [0, 0, 1, 1, 0, 0],
+        [0, 1, 0, 0, 1, 0],
+        [0, 1, 0, 0, 1, 0],
+        [0, 0, 1, 1, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0]
+    ],
+    9: [
+        [0, 0, 1, 1, 1, 0],
+        [0, 1, 0, 0, 1, 0],
+        [0, 1, 0, 0, 1, 0],
+        [0, 0, 1, 1, 1, 0],
+        [0, 0, 0, 0, 1, 0],
+        [0, 0, 0, 0, 1, 0],
+        [0, 0, 1, 1, 1, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0]
+    ]
+};
+
+// Define bonus score
+var bonusScore = 0;
+
+// Define blocks
+var blocks = [];
+function generateBlocks() {
+    blocks = [];  // Clear previous blocks
+
+    var yOffset = 50;  // Reserve 50px at the top for score, lives, and level
+    var numBlocksPerRow = 6;
+    var blockWidth = (canvas.width - (numBlocksPerRow + 1) * 10) / numBlocksPerRow;  // Subtract gaps and divide by numBlocksPerRow
+    var blockHeight = 20;
+    var blockSpacing = 10; // Space between blocks
+
+    // Calculate the starting y position to center the blocks vertically
+    var totalRows = 10;  // Each number is now represented by a 10x6 grid
+    var startY = yOffset + (canvas.height - yOffset - (totalRows * blockHeight) - ((totalRows - 1) * blockSpacing)) / 2;
+
+    // Create blocks
+    let pattern = numbers[level % 10];  // Use the pattern for the current level number
+    for (let i = 0; i < pattern.length; i++) {
+        for (let j = 0; j < pattern[i].length; j++) {
+            if (pattern[i][j] === 0) {
+                var x = j * (blockWidth + blockSpacing) + blockSpacing;
+                var y = startY + i * (blockHeight + blockSpacing);
+                var hits = 3;  // All blocks now take 3 hits to destroy
+                var color = blockColors[hits.toString()];
+                var points = hits;
+                blocks.push({ x: x, y: y, width: blockWidth, height: blockHeight, color: color, points: points, hits: hits });
+            }
+        }
+    }
+}
+
+// Initialize game
+generateBlocks();
+resetBall();
+
+// Function to restart the game
+function restartGame() {
+    // Reset game state
+    gameState = GAME_STATE_PLAY;
+
+    // Reset score and lives
+    score = 0;
+    lives = 3;
+
+    // Reset level
+    level = 1;
+
+    // Reset timer
+    resetTimer();
+
+    // Reset bonus score
+    bonusScore = 0;
+
+    // Generate blocks
+    generateBlocks();
+
+    // Reset ball
+    resetBall();
+}
+
+// Step 3: Write a function to draw our game's objects on the canvas
+function draw() {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (gameState === GAME_STATE_GAME_OVER) {
+        // Game over
+        context.font = '48px Arial';
+        context.fillStyle = 'white';
+        var gameOverText = 'Game Over';
+        var textWidth = context.measureText(gameOverText).width;
+        context.fillText(gameOverText, (canvas.width - textWidth) / 2, canvas.height / 2);
+
+        // Display high score
+        context.font = '24px Arial';
+        var highScoreText = 'High Score: ' + highScore;
+        textWidth = context.measureText(highScoreText).width;
+        context.fillText(highScoreText, (canvas.width - textWidth) / 2, canvas.height / 2 + 50);
+
+        // Display "Click to try again" text
+        context.font = '24px Arial';
+        var tryAgainText = 'Click to try again';
+        textWidth = context.measureText(tryAgainText).width;
+        context.fillText(tryAgainText, (canvas.width - textWidth) / 2, canvas.height / 2 + 100);
+    } else if (gameState === GAME_STATE_NEXT_LEVEL) {
+        // Display bonus score
+        context.font = '28px Arial';
+        context.fillStyle = 'white';
+        var bonusScoreText = 'Completion Time Bonus: ' + bonusScore;
+        var textWidth = context.measureText(bonusScoreText).width;
+        context.fillText(bonusScoreText, (canvas.width - textWidth) / 2, canvas.height / 2 - 50);
+    } else {
+        // Draw the blocks
+        for (var i = 0; i < blocks.length; i++) {
+            var block = blocks[i];
+            context.fillStyle = block.color;
+            context.fillRect(block.x, block.y, block.width, block.height);
+        }
+
+        // Draw the ball
+        context.beginPath();
+        context.arc(ball.x, ball.y, ball.radius, 0, Math.PI*2);
+        context.fillStyle = "red";
+        context.fill();
+        context.closePath();
+
+        // Draw the paddle
+        context.fillStyle = "white";
+        context.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
+
+        // Draw the score
+        context.font = '24px Arial';
+        context.fillStyle = 'white';
+        context.fillText('Score: ' + score, 10, 30);
+
+        // Draw the lives
+        context.fillText('Lives: ' + lives, canvas.width - context.measureText('Lives: ' + lives).width - 10, 30);
+
+        // Draw the level
+        context.fillText('Level: ' + level, canvas.width / 2 - context.measureText('Level: ' + level).width / 2, 30);
+
+        // Draw the timer
+        var minutes = Math.floor(timer / 60);
+        var seconds = timer % 60;
+        if (seconds < 10) seconds = '0' + seconds;
+        context.fillText('Time: ' + minutes + ':' + seconds, 10, canvas.height - 10);
+    }
+}
+
+// Step 4: Write a function to update our game's objects
+function update() {
+    if (gameState === GAME_STATE_PLAY) {
+        // Move the ball
+        ball.x += ball.dx;
+        ball.y += ball.dy;
+
+        // Bounce the ball off the walls
+        if (ball.x + ball.dx > canvas.width - ball.radius || ball.x + ball.dx < ball.radius) {
+            ball.dx = -ball.dx;
+        }
+
+        if (ball.y + ball.dy < ball.radius) {
+            ball.dy = -ball.dy;
+        }
+
+        // Check if the ball hits the paddle
+        if (ball.y + ball.dy > canvas.height - ball.radius - paddle.height && 
+            ball.x > paddle.x && ball.x < paddle.x + paddle.width) {
+            ball.dy = -ball.dy;
+        }
+
+        // Check if the ball hits a block
+        for (var i = 0; i < blocks.length; i++) {
+            var block = blocks[i];
+            if (ball.x > block.x && ball.x < block.x + block.width && 
+                ball.y - ball.radius < block.y + block.height && ball.y + ball.radius > block.y) {
+                ball.dy = -ball.dy;
+                block.hits--;
+                block.color = blockColors[block.hits.toString()];
+                if (block.hits === 0) {
+                    // The block is destroyed
+                    score += block.points;
+                    blocks.splice(i, 1);
+                    i--;
+                }
+            }
+        }
+
+        // Check if all blocks are destroyed
+        if (blocks.length === 0) {
+            // Calculate and add bonus score
+            bonusScore = Math.floor(timer * 2);
+            score += bonusScore;
+
+            // Proceed to next level
+            gameState = GAME_STATE_NEXT_LEVEL;
+            level++;
+
+            // Generate new blocks
+            setTimeout(function() {
+                // Reset timer
+                resetTimer();
+
+                // Reset bonus score
+                bonusScore = 0;
+
+                // Generate new blocks
+                generateBlocks();
+
+                // Reset the ball
+                resetBall();
+
+                // Return to play state
+                gameState = GAME_STATE_PLAY;
+            }, 3000);  // Wait for 3 seconds before starting the next level
+        }
+
+        // Check if the ball falls off the bottom of the screen
+        if (ball.y + ball.dy > canvas.height + ball.radius) {
+            // Lose a life
+            lives--;
+
+            if (lives === 0) {
+                // Game over
+                gameState = GAME_STATE_GAME_OVER;
+                if (score > highScore) highScore = score; // Update high score if necessary
+            } else {
+                // Reset the ball
+                resetBall();
+            }
+        }
+
+        // Move the paddle
+        paddle.x += paddle.dx;
+        if (paddle.x < 0) paddle.x = 0;
+        if (paddle.x > canvas.width - paddle.width) paddle.x = canvas.width - paddle.width;
+    }
+}
+
+// Step 5: Write a function to run the game
+function run() {
+    draw();
+    update();
+    requestAnimationFrame(run);
+}
+
+run();
+
+// Step 6: Add controls
+window.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowRight') {
+        paddle.dx = paddleSpeed;
+    } else if (e.key === 'ArrowLeft') {
+        paddle.dx = -paddleSpeed;
+    }
+});
+
+window.addEventListener('keyup', function(e) {
+    paddle.dx = 0;
+});
+
+// Add click event listener to restart the game
+canvas.addEventListener('click', function(e) {
+    if (gameState === GAME_STATE_GAME_OVER) {
+        restartGame();
+    }
+});
+</script>
+</body>
+</html>
